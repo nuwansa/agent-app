@@ -4,9 +4,8 @@ import (
 	"github.com/cloudimpl/next-coder-sdk/polycode"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	_ "portal/register/.polycode"
-	"portal/register/controllers"
-	"portal/register/lib"
+	_ "polycode/agent-app/.polycode"
+	"polycode/agent-app/lib"
 )
 
 func main() {
@@ -18,7 +17,6 @@ func main() {
 	config.AllowAllOrigins = true
 	config.AllowHeaders = append(config.AllowHeaders, "x-polycode-partition-key")
 	r.Use(cors.New(config))
-	r.POST("/greeting", controllers.Greeting)
 
 	polycode.StartApp(r)
 }
