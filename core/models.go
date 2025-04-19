@@ -1,7 +1,8 @@
 package core
 
 type AgentMeta struct {
-	Name          string            `json:"name,required" polycode:"id"`
+	Id            string            `json:"id" polycode:"id"`
+	Name          string            `json:"name,required"`
 	Description   string            `json:"description,required"`
 	SystemContext string            `json:"context"`
 	Tools         []ToolDescriptor  `json:"tools"`
@@ -33,7 +34,7 @@ type AgentInstallRequest struct {
 }
 
 type AgentInput struct {
-	Name  string   `json:"name,required"`
+	Name  string   `json:"name"`
 	Input LLMInput `json:"input"`
 }
 

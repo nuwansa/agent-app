@@ -8,7 +8,7 @@ import (
 	"polycode/agent-app/gemini"
 )
 
-var agents = make(map[string]*core.Agent)
+var agent *core.Agent = nil
 var llm core.LLM
 
 func init() {
@@ -21,6 +21,7 @@ func init() {
 
 func InstallAgent(ctx polycode.ServiceContext, req core.AgentInstallRequest) (core.EmptyResponse, error) {
 	meta := core.AgentMeta{
+		Id:            "xxx",
 		Name:          req.Name,
 		Description:   req.Description,
 		SystemContext: req.SystemContext,
@@ -28,12 +29,13 @@ func InstallAgent(ctx polycode.ServiceContext, req core.AgentInstallRequest) (co
 		Agents:        req.Agents,
 	}
 	collection := ctx.Db().Collection("agent")
-	err := collection.InsertOne(meta)
+	err := collection.UpsertOne(meta)
 	return core.EmptyResponse{}, err
 }
 
 func UpdateAgent(ctx polycode.ServiceContext, req core.AgentInstallRequest) (core.EmptyResponse, error) {
 	meta := core.AgentMeta{
+		Id:            "xxx",
 		Name:          req.Name,
 		Description:   req.Description,
 		SystemContext: req.SystemContext,
@@ -56,7 +58,7 @@ func CallAgent(ctx polycode.WorkflowContext, req core.AgentInput) (core.AgentOut
 	}
 
 	collection := ds.Collection(agent.Name)
-	history, err := loadLastTask(ds)
+	history, err := loadLastTask(ds, req.Input.TaskId)
 	out, err := agent.Run(ctx, history, req.Input)
 	if err != nil {
 		return core.AgentOutput{}, err
@@ -85,27 +87,22 @@ func CallAgent(ctx polycode.WorkflowContext, req core.AgentInput) (core.AgentOut
 	}, nil
 }
 
-func callAgent(ds polycode.UnsafeDataStore, ctx context.Context, history *core.TaskHistory, req core.AgentInput) (core.AgentOutput, error) {
-	agent, err := getAgent(ctx, ds, req.Name)
-	if err != nil {
-		return core.AgentOutput{}, err
-	}
+func callAgent(ctx polycode.WorkflowContext, req core.AgentInput) (core.AgentOutput, error) {
 
-	out, err := agent.Run(ctx, history, req.Input)
+	resp := ctx.Service(req.Name).WithPartitionKey(req.Input.SessionKey).Get().RequestReply(polycode.TaskOptions{}, "CallAgent", req)
+	output := core.AgentOutput{}
+	err := resp.Get(&output)
 	if err != nil {
 		return core.AgentOutput{}, err
 	}
-	return core.AgentOutput{
-		Output: out,
-	}, nil
+	return output, nil
 }
 
-func getAgent(ctx context.Context, ds polycode.UnsafeDataStore, name string) (*core.Agent, error) {
-	agent := agents[name]
+func getAgent(wrkCtx polycode.WorkflowContext, ds polycode.UnsafeDataStore, name string) (*core.Agent, error) {
 	if agent == nil {
 		collection := ds.Collection("agent:session")
 		agentDesc := core.AgentMeta{}
-		exist, err := collection.GetOne(name, &agentDesc)
+		exist, err := collection.GetOne("xxx", &agentDesc)
 		if err != nil {
 			return nil, err
 		}
@@ -113,8 +110,8 @@ func getAgent(ctx context.Context, ds polycode.UnsafeDataStore, name string) (*c
 			return nil, fmt.Errorf("agent %s not found", name)
 		}
 
-		agent, err = core.NewAgent(name, agentDesc.Description, agentDesc.SystemContext, llm, agentDesc.Tools, agentDesc.Agents, func(ctx context.Context, name string, taskHistory *core.TaskHistory, Input core.LLMInput) (core.LLMOutput, error) {
-			out, err := callAgent(ds, ctx, taskHistory, core.AgentInput{
+		agent, err = core.NewAgent(agentDesc.Name, agentDesc.Description, agentDesc.SystemContext, llm, agentDesc.Tools, agentDesc.Agents, func(ctx context.Context, name string, Input core.LLMInput) (core.LLMOutput, error) {
+			out, err := callAgent(wrkCtx, core.AgentInput{
 				Name:  name,
 				Input: Input,
 			})
@@ -127,14 +124,31 @@ func getAgent(ctx context.Context, ds polycode.UnsafeDataStore, name string) (*c
 		if err != nil {
 			return nil, err
 		}
-		agents[name] = agent
 	}
 	return agent, nil
 
 }
 
-func loadLastTask(ds polycode.UnsafeDataStore) (*core.TaskHistory, error) {
+func loadTaskById(ds polycode.UnsafeDataStore, taskId int64) (*core.TaskHistory, error) {
 
+	taskCollection := ds.Collection("agent:session")
+	taskHistory := core.NewTaskHistory()
+	exist, err := taskCollection.GetOne(fmt.Sprintf("%019d", taskId), taskHistory)
+	if err != nil {
+		return nil, err
+	}
+	if !exist {
+		taskHistory.TaskId = taskId
+		taskHistory.Id = fmt.Sprintf("%019d", taskHistory.TaskId)
+		taskHistory.Status = "in_progress"
+	}
+	return taskHistory, nil
+}
+
+func loadLastTask(ds polycode.UnsafeDataStore, taskId int64) (*core.TaskHistory, error) {
+	if taskId != 0 {
+		return loadTaskById(ds, taskId)
+	}
 	collection := ds.Collection("agent:latest")
 	latestTask := core.LatestTask{}
 	exist, err := collection.GetOne("xxx", &latestTask)

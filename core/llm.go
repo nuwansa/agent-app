@@ -8,16 +8,16 @@ type Image struct {
 }
 
 type LLMInput struct {
-	SessionKey      string
-	ChildSessionKey string
-	Text            string
-	Image           []Image
-	Labels          map[string]string
+	SessionKey string            `json:"sessionKey"`
+	TaskId     int64             `json:"taskId"`
+	Text       string            `json:"text"`
+	Image      []Image           `json:"image"`
+	Labels     map[string]string `json:"labels"`
 }
 
 type LLMOutput struct {
-	Text  string
-	Stats Stats
+	Text  string `json:"text"`
+	Stats Stats  `json:"stats"`
 }
 
 type Stats struct {

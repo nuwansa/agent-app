@@ -52,7 +52,7 @@ Certainly! I'd be happy to help you with that. Based on the information you prov
 Remember to always include both the <response> and <task_status> tags in your output. The task status will help determine when to reset the chat history for the next task.
 `
 
-func NewAgent(name string, description string, systemContext string, llm LLM, tools []ToolDescriptor, agents []AgentDescriptor, agentHandler func(ctx context.Context, name string, taskHistory *TaskHistory, Input LLMInput) (LLMOutput, error)) (*Agent, error) {
+func NewAgent(name string, description string, systemContext string, llm LLM, tools []ToolDescriptor, agents []AgentDescriptor, agentHandler func(ctx context.Context, name string, Input LLMInput) (LLMOutput, error)) (*Agent, error) {
 	toolRepo := NewToolRepo(GetToolRegistry(), agentHandler)
 
 	agent := &Agent{
@@ -79,17 +79,16 @@ func NewAgent(name string, description string, systemContext string, llm LLM, to
 }
 
 func NewTaskHistory() *TaskHistory {
-	return &TaskHistory{AgentsHistory: make(map[string]*TaskHistory)}
+	return &TaskHistory{}
 }
 
 type TaskHistory struct {
-	Id            string                  `json:"id" polycode:"id"`
-	TaskId        int64                   `json:"taskId"`
-	Contents      []ChatContent           `json:"contents"`
-	Status        string                  `json:"status"`
-	Stats         Stats                   `json:"stats"`
-	AgentsHistory map[string]*TaskHistory `json:"agentsHistory"`
-	previousTask  *TaskHistory
+	Id           string        `json:"id" polycode:"id"`
+	TaskId       int64         `json:"taskId"`
+	Contents     []ChatContent `json:"contents"`
+	Status       string        `json:"status"`
+	Stats        Stats         `json:"stats"`
+	previousTask *TaskHistory
 }
 
 func (th *TaskHistory) SetPreviousTask(previousTask *TaskHistory) {
@@ -197,18 +196,13 @@ func (agent *Agent) run(ctx context.Context, systemContext string, taskHistory *
 
 	var agentResult []AgentResult
 	for _, agentCall := range agentCalls {
-		agentHistory := taskHistory.AgentsHistory[agentCall.AgentName]
-		if agentHistory == nil {
-			agentHistory = NewTaskHistory()
-			taskHistory.AgentsHistory[agentCall.AgentName] = agentHistory
-		}
 		println("agentCall", agentCall.AgentName, agentCall.Input)
-		ret, err := agent.executeAgent(ctx, agentCall.AgentName, agentHistory, LLMInput{
-			SessionKey:      input.SessionKey,
-			ChildSessionKey: taskHistory.Id,
-			Text:            agentCall.Input,
-			Image:           nil,
-			Labels:          nil,
+		ret, err := agent.executeAgent(ctx, agentCall.AgentName, LLMInput{
+			SessionKey: "child:" + input.SessionKey,
+			TaskId:     taskHistory.TaskId,
+			Text:       agentCall.Input,
+			Image:      nil,
+			Labels:     nil,
 		})
 		var out = ""
 		if err != nil {
@@ -272,13 +266,13 @@ func (agent *Agent) executeTool(ctx context.Context, name string, input map[stri
 	return executor.Execute(ctx, string(b))
 }
 
-func (agent *Agent) executeAgent(ctx context.Context, name string, taskHistory *TaskHistory, input LLMInput) (LLMOutput, error) {
+func (agent *Agent) executeAgent(ctx context.Context, name string, input LLMInput) (LLMOutput, error) {
 	executor := agent.toolRepo.GetAgent(name)
 	if executor == nil {
 		return LLMOutput{}, fmt.Errorf("agent %s not found", name)
 	}
 
-	return executor.Execute(ctx, name, taskHistory, input)
+	return executor.Execute(ctx, name, input)
 }
 
 // extractTagContent extracts the inner text of the given XML tag from xmlStr.

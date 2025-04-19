@@ -19,10 +19,10 @@ type AgentExecutor interface {
 	GetName() string
 	GetDescription() string
 	GetAgentDescriptor() AgentDescriptor
-	Execute(ctx context.Context, name string, taskHistory *TaskHistory, input LLMInput) (LLMOutput, error)
+	Execute(ctx context.Context, name string, input LLMInput) (LLMOutput, error)
 }
 
-func NewToolRepo(registry *ToolRegistry, agentHandler func(ctx context.Context, name string, taskHistory *TaskHistory, Input LLMInput) (LLMOutput, error)) *ToolRepo {
+func NewToolRepo(registry *ToolRegistry, agentHandler func(ctx context.Context, name string, Input LLMInput) (LLMOutput, error)) *ToolRepo {
 	return &ToolRepo{
 		registry:     registry,
 		tools:        make(map[string]ToolExecutor),
@@ -35,7 +35,7 @@ type ToolRepo struct {
 	registry     *ToolRegistry
 	tools        map[string]ToolExecutor
 	agents       map[string]AgentExecutor
-	agentHandler func(ctx context.Context, name string, taskHistory *TaskHistory, Input LLMInput) (LLMOutput, error)
+	agentHandler func(ctx context.Context, name string, Input LLMInput) (LLMOutput, error)
 }
 
 func (repo *ToolRepo) RegisterAgent(desc AgentDescriptor) error {
@@ -231,7 +231,7 @@ func (i *InbuiltToolExecutor) Execute(ctx context.Context, input string) (string
 
 type AgentExecutorImpl struct {
 	Desc    AgentDescriptor
-	Handler func(ctx context.Context, name string, taskHistory *TaskHistory, Input LLMInput) (LLMOutput, error)
+	Handler func(ctx context.Context, name string, Input LLMInput) (LLMOutput, error)
 }
 
 func (a *AgentExecutorImpl) GetAgentDescriptor() AgentDescriptor {
@@ -246,6 +246,6 @@ func (a *AgentExecutorImpl) GetDescription() string {
 	return a.Desc.Description
 }
 
-func (a *AgentExecutorImpl) Execute(ctx context.Context, name string, taskHistory *TaskHistory, input LLMInput) (LLMOutput, error) {
-	return a.Handler(ctx, name, taskHistory, input)
+func (a *AgentExecutorImpl) Execute(ctx context.Context, name string, input LLMInput) (LLMOutput, error) {
+	return a.Handler(ctx, name, input)
 }
