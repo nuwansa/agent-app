@@ -67,21 +67,24 @@ func CallAgent(ctx polycode.WorkflowContext, req core.AgentInput) (core.AgentOut
 	if err != nil {
 		return core.AgentOutput{}, err
 	}
-	latestTask := core.LatestTask{Id: "xxx"}
-	if history.Status == "completed" {
-		latestTask.LastTaskId = history.TaskId
-		latestTask.TaskId = 0
-	} else {
-		latestTask.TaskId = history.TaskId
-		if history.GetPreviousTask() != nil {
-			latestTask.LastTaskId = history.GetPreviousTask().TaskId
+	if req.Input.TaskId == 0 {
+		latestTask := core.LatestTask{Id: "xxx"}
+		if history.Status == "completed" {
+			latestTask.LastTaskId = history.TaskId
+			latestTask.TaskId = 0
+		} else {
+			latestTask.TaskId = history.TaskId
+			if history.GetPreviousTask() != nil {
+				latestTask.LastTaskId = history.GetPreviousTask().TaskId
+			}
+		}
+		latestColl := ds.Collection("agent:latest")
+		err = latestColl.UpsertOne(latestTask)
+		if err != nil {
+			return core.AgentOutput{}, err
 		}
 	}
-	latestColl := ds.Collection("agent:latest")
-	err = latestColl.UpsertOne(latestTask)
-	if err != nil {
-		return core.AgentOutput{}, err
-	}
+
 	return core.AgentOutput{
 		Output: out,
 	}, nil
