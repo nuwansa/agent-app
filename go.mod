@@ -6,7 +6,7 @@ toolchain go1.24.0
 
 require (
 	github.com/PuerkitoBio/goquery v1.10.3
-	github.com/cloudimpl/next-coder-sdk v0.116.0
+	github.com/cloudimpl/next-coder-sdk v0.143.0
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-playground/validator/v10 v10.20.0

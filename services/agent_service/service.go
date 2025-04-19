@@ -49,13 +49,14 @@ func CallAgent(ctx polycode.WorkflowContext, req core.AgentInput) (core.AgentOut
 	if req.Input.SessionKey == "" {
 		return core.AgentOutput{}, fmt.Errorf("session key required")
 	}
-	serviceCtx := ctx.(polycode.ServiceContext)
-	agent, err := getAgent(serviceCtx, req.Name)
+	ds := ctx.UnsafeDb().WithPartitionKey(req.Input.SessionKey).Get()
+	agent, err := getAgent(ctx, ds, req.Name)
 	if err != nil {
 		return core.AgentOutput{}, err
 	}
-	collection := serviceCtx.Db().Collection(agent.Name)
-	history, err := loadLastTask(serviceCtx)
+
+	collection := ds.Collection(agent.Name)
+	history, err := loadLastTask(ds)
 	out, err := agent.Run(ctx, history, req.Input)
 	if err != nil {
 		return core.AgentOutput{}, err
@@ -74,7 +75,7 @@ func CallAgent(ctx polycode.WorkflowContext, req core.AgentInput) (core.AgentOut
 			latestTask.LastTaskId = history.GetPreviousTask().TaskId
 		}
 	}
-	latestColl := serviceCtx.Db().Collection("agent:latest")
+	latestColl := ds.Collection("agent:latest")
 	err = latestColl.UpsertOne(latestTask)
 	if err != nil {
 		return core.AgentOutput{}, err
@@ -84,8 +85,8 @@ func CallAgent(ctx polycode.WorkflowContext, req core.AgentInput) (core.AgentOut
 	}, nil
 }
 
-func callAgent(ctx polycode.ServiceContext, history *core.TaskHistory, req core.AgentInput) (core.AgentOutput, error) {
-	agent, err := getAgent(ctx, req.Name)
+func callAgent(ds polycode.UnsafeDataStore, ctx context.Context, history *core.TaskHistory, req core.AgentInput) (core.AgentOutput, error) {
+	agent, err := getAgent(ctx, ds, req.Name)
 	if err != nil {
 		return core.AgentOutput{}, err
 	}
@@ -99,10 +100,10 @@ func callAgent(ctx polycode.ServiceContext, history *core.TaskHistory, req core.
 	}, nil
 }
 
-func getAgent(serviceCtx polycode.ServiceContext, name string) (*core.Agent, error) {
+func getAgent(ctx context.Context, ds polycode.UnsafeDataStore, name string) (*core.Agent, error) {
 	agent := agents[name]
 	if agent == nil {
-		collection := serviceCtx.Db().Collection("agent:session")
+		collection := ds.Collection("agent:session")
 		agentDesc := core.AgentMeta{}
 		exist, err := collection.GetOne(name, &agentDesc)
 		if err != nil {
@@ -113,7 +114,7 @@ func getAgent(serviceCtx polycode.ServiceContext, name string) (*core.Agent, err
 		}
 
 		agent, err = core.NewAgent(name, agentDesc.Description, agentDesc.SystemContext, llm, agentDesc.Tools, agentDesc.Agents, func(ctx context.Context, name string, taskHistory *core.TaskHistory, Input core.LLMInput) (core.LLMOutput, error) {
-			out, err := callAgent(serviceCtx, taskHistory, core.AgentInput{
+			out, err := callAgent(ds, ctx, taskHistory, core.AgentInput{
 				Name:  name,
 				Input: Input,
 			})
@@ -132,9 +133,9 @@ func getAgent(serviceCtx polycode.ServiceContext, name string) (*core.Agent, err
 
 }
 
-func loadLastTask(serviceCtx polycode.ServiceContext) (*core.TaskHistory, error) {
+func loadLastTask(ds polycode.UnsafeDataStore) (*core.TaskHistory, error) {
 
-	collection := serviceCtx.Db().Collection("agent:latest")
+	collection := ds.Collection("agent:latest")
 	latestTask := core.LatestTask{}
 	exist, err := collection.GetOne("xxx", &latestTask)
 	if err != nil {
@@ -143,7 +144,7 @@ func loadLastTask(serviceCtx polycode.ServiceContext) (*core.TaskHistory, error)
 	taskHistory := core.NewTaskHistory()
 	if exist {
 		if latestTask.LastTaskId != 0 {
-			taskCollection := serviceCtx.Db().Collection("agent:session")
+			taskCollection := ds.Collection("agent:session")
 			previousTask := core.NewTaskHistory()
 			exist, err := taskCollection.GetOne(fmt.Sprintf("%019d", latestTask.LastTaskId), previousTask)
 			if err != nil {
@@ -156,7 +157,7 @@ func loadLastTask(serviceCtx polycode.ServiceContext) (*core.TaskHistory, error)
 			}
 		}
 		if latestTask.TaskId != 0 {
-			taskCollection := serviceCtx.Db().Collection("agent:session")
+			taskCollection := ds.Collection("agent:session")
 			exist, err := taskCollection.GetOne(fmt.Sprintf("%019d", latestTask.TaskId), taskHistory)
 			if err != nil {
 				return nil, err
