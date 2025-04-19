@@ -45,16 +45,17 @@ func UpdateAgent(ctx polycode.ServiceContext, req core.AgentInstallRequest) (cor
 	return core.EmptyResponse{}, err
 }
 
-func CallAgent(ctx polycode.ServiceContext, req core.AgentInput) (core.AgentOutput, error) {
+func CallAgent(ctx polycode.WorkflowContext, req core.AgentInput) (core.AgentOutput, error) {
 	if req.Input.SessionKey == "" {
 		return core.AgentOutput{}, fmt.Errorf("session key required")
 	}
-	agent, err := getAgent(ctx, req.Name)
+	serviceCtx := ctx.(polycode.ServiceContext)
+	agent, err := getAgent(serviceCtx, req.Name)
 	if err != nil {
 		return core.AgentOutput{}, err
 	}
-	collection := ctx.Db().Collection(agent.Name)
-	history, err := loadLastTask(ctx)
+	collection := serviceCtx.Db().Collection(agent.Name)
+	history, err := loadLastTask(serviceCtx)
 	out, err := agent.Run(ctx, history, req.Input)
 	if err != nil {
 		return core.AgentOutput{}, err
@@ -73,7 +74,7 @@ func CallAgent(ctx polycode.ServiceContext, req core.AgentInput) (core.AgentOutp
 			latestTask.LastTaskId = history.GetPreviousTask().TaskId
 		}
 	}
-	latestColl := ctx.Db().Collection("agent:latest")
+	latestColl := serviceCtx.Db().Collection("agent:latest")
 	err = latestColl.UpsertOne(latestTask)
 	if err != nil {
 		return core.AgentOutput{}, err

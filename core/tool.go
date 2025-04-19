@@ -67,6 +67,7 @@ type AgentCall struct {
 
 type ToolDescriptor struct {
 	Name        string          `json:"name"`
+	ServiceName string          `json:"serviceName"`
 	Description string          `json:"description"`
 	Parameters  json.RawMessage `json:"parameters"`
 	Inbuilt     bool            `json:"inbuilt"`

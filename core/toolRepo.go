@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/cloudimpl/next-coder-sdk/polycode"
 	"reflect"
 )
 
@@ -99,8 +100,20 @@ func (r *RemoteToolExecutor) GetDescription() string {
 }
 
 func (r *RemoteToolExecutor) Execute(ctx context.Context, input string) (string, error) {
-	//TODO implement me
-	panic("implement me")
+	workflowCtx := ctx.(polycode.WorkflowContext)
+	resp := workflowCtx.Service(r.Descriptor.ServiceName).Get().RequestReply(polycode.TaskOptions{}, r.Descriptor.Name, input)
+	ret, err := resp.GetAny()
+	if err != nil {
+		return "", err
+	}
+	if ret == nil {
+		return "", nil
+	}
+	b, err := json.Marshal(ret)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 func (r *RemoteToolExecutor) GetToolDescriptor() ToolDescriptor {
