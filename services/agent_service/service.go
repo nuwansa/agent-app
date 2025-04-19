@@ -33,20 +33,6 @@ func InstallAgent(ctx polycode.ServiceContext, req core.AgentInstallRequest) (co
 	return core.EmptyResponse{}, err
 }
 
-func UpdateAgent(ctx polycode.ServiceContext, req core.AgentInstallRequest) (core.EmptyResponse, error) {
-	meta := core.AgentMeta{
-		Id:            "xxx",
-		Name:          req.Name,
-		Description:   req.Description,
-		SystemContext: req.SystemContext,
-		Tools:         req.Tools,
-		Agents:        req.Agents,
-	}
-	collection := ctx.Db().Collection("agent")
-	err := collection.UpdateOne(meta)
-	return core.EmptyResponse{}, err
-}
-
 func CallAgent(ctx polycode.WorkflowContext, req core.AgentInput) (core.AgentOutput, error) {
 	if req.Input.SessionKey == "" {
 		return core.AgentOutput{}, fmt.Errorf("session key required")
